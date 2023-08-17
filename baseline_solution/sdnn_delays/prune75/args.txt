@@ -1,0 +1,19 @@
+b : 64
+clip : 10
+dmax : 64
+epoch : 5
+exp : 
+gpu : [0]
+lam : 0.001
+lr : 0.01
+n_fft : 512
+out_delay : 0
+path : /gv1/projects/neuromorphics/dns/
+pretrained_weights_folder : Trained_ORIG
+pruning_epochs : 2.0
+scale_grad : 0.8
+seed : None
+sparsity_target : 0.75
+tau_grad : 0.1
+threshold : 0.1
+trained_folder : prune75
