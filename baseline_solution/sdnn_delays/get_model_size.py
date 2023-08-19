@@ -1,3 +1,6 @@
+# Copyright (C) 2021-22 Intel Corporation
+# SPDX-License-Identifier: MIT
+# See: https://spdx.org/licenses/
 import numpy as np
 from lava.lib.dl import netx
 import argparse

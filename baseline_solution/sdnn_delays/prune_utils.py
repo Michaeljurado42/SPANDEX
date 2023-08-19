@@ -1,3 +1,6 @@
+# Copyright (C) 2021-22 Intel Corporation
+# SPDX-License-Identifier: MIT
+# See: https://spdx.org/licenses/
 from lava.lib.dl.slayer.synapse import Dense
 import numpy as np
 import torch.nn.utils.prune as prune
