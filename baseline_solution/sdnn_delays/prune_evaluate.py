@@ -141,6 +141,7 @@ if __name__ == "__main__":
                             shuffle=True,
                             collate_fn=collate_fn,
                             num_workers=32,
+                            persistent_workers = True,
                             pin_memory=True)
 
 
@@ -182,58 +183,52 @@ if __name__ == "__main__":
     def compute_dnsmos(sample):
         return dnsmos(sample[None, ...])[0]
     print("starting loop")
-    for i, (noisy, clean, noise) in enumerate(validation_loader):
-        net.eval()
-        with torch.no_grad():
-            print(i)
-            start = time.time()
-            noisy = noisy.to(device)
-            clean = clean.to(device)
+    with Pool(96) as pool:
+        for i, (noisy, clean, noise) in enumerate(validation_loader):
+            net.eval()
+            with torch.no_grad():
+                print(i)
+                start = time.time()
+                noisy = noisy.to(device)
+                clean = clean.to(device)
 
-            noisy_abs, noisy_arg = stft_splitter(noisy, n_fft)
-            clean_abs, clean_arg = stft_splitter(clean, n_fft)
+                noisy_abs, noisy_arg = stft_splitter(noisy, n_fft)
+                clean_abs, clean_arg = stft_splitter(clean, n_fft)
 
-            denoised_abs, count = net(noisy_abs)
-            valid_event_counts.append(count.cpu().data.numpy())
-            noisy_arg = slayer.axon.delay(noisy_arg, out_delay)
-            clean_abs = slayer.axon.delay(clean_abs, out_delay)
-            clean = slayer.axon.delay(clean, win_length * out_delay)
+                denoised_abs, count = net(noisy_abs)
+                valid_event_counts.append(count.cpu().data.numpy())
+                noisy_arg = slayer.axon.delay(noisy_arg, out_delay)
+                clean_abs = slayer.axon.delay(clean_abs, out_delay)
+                clean = slayer.axon.delay(clean, win_length * out_delay)
 
-            loss = F.mse_loss(denoised_abs, clean_abs)
-            clean_rec = stft_mixer(denoised_abs, noisy_arg, n_fft)
-            score = si_snr(clean_rec, clean)
-            combined_data = np.concatenate((noisy.cpu().data.numpy(), 
-                                            clean.cpu().data.numpy(), 
-                                            noise.cpu().data.numpy(), 
-                                            clean_rec.cpu().data.numpy()), axis=0)
-            with Pool(96) as pool:
-                combined_results = np.array(pool.map(compute_dnsmos, combined_data))
+                loss = F.mse_loss(denoised_abs, clean_abs)
+                clean_rec = stft_mixer(denoised_abs, noisy_arg, n_fft)
+                score = si_snr(clean_rec, clean)
+                combined_data = np.concatenate([noisy.cpu().data.numpy(), clean.cpu().data.numpy(), noise.cpu().data.numpy(), clean_rec.cpu().data.numpy()])
+                result = np.array(pool.map(compute_dnsmos, combined_data))
+                split_result = np.array_split(result, 4, axis = 0)
+                dnsmos_noisy += np.sum(split_result[0], axis=0)
+                dnsmos_clean += np.sum(split_result[1], axis=0)
+                dnsmos_noise += np.sum(split_result[2], axis=0)
+                dnsmos_cleaned += np.sum(split_result[3], axis=0)
 
-            # Split the results back into the respective components
-            split_sizes = [noisy.size(0), clean.size(0), noise.size(0), clean_rec.size(0)]
-            dnsmos_noisy, dnsmos_clean, dnsmos_noise, dnsmos_cleaned = np.split(combined_results, np.cumsum(split_sizes)[:-1])
-            
-            # Sum the results
-            dnsmos_noisy = np.sum(dnsmos_noisy, axis=0)
-            dnsmos_clean = np.sum(dnsmos_clean, axis=0)
-            dnsmos_noise = np.sum(dnsmos_noise, axis=0)
-            dnsmos_cleaned = np.sum(dnsmos_cleaned, axis=0)
+                stats.validation.correct_samples += torch.sum(score).item()
+                stats.validation.loss_sum += loss.item()
+                stats.validation.num_samples += noisy.shape[0]
 
-            stats.validation.correct_samples += torch.sum(score).item()
-            stats.validation.loss_sum += loss.item()
-            stats.validation.num_samples += noisy.shape[0]
-
-            processed = i * validation_loader.batch_size
-            total = len(validation_loader.dataset)
-            time_elapsed = (datetime.now() - t_st).total_seconds()
-            samples_sec = time_elapsed / (i + 1) / validation_loader.batch_size
-            header_list = [f'Valid: [{processed}/{total} '
-                            f'({100.0 * processed / total:.0f}%)]']
-            header_list.append(f'Event rate: {[c.item() for c in count]}')
-            print(header_list[0])
-            print(header_list[1])
-            print("Total time for batch", time.time() - start)
-            print(f'\r{header_list[0]}', end='')
+                processed = i * validation_loader.batch_size
+                total = len(validation_loader.dataset)
+                time_elapsed = (datetime.now() - t_st).total_seconds()
+                samples_sec = time_elapsed / (i + 1) / validation_loader.batch_size
+                header_list = [f'Valid: [{processed}/{total} '
+                                f'({100.0 * processed / total:.0f}%)]']
+                header_list.append(f'Event rate: {[c.item() for c in count]}')
+                print(header_list[0])
+                print(header_list[1])
+                print("Total time for batch", time.time() - start)
+                print(dnsmos_cleaned.shape)
+                print(f'\r{header_list[0]}', end='')
+                
 
     dnsmos_clean /= len(validation_loader.dataset)
     dnsmos_noisy /= len(validation_loader.dataset)
