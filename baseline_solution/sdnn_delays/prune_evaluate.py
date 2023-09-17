@@ -19,6 +19,7 @@ from torch.utils.data import DataLoader
 import IPython.display as ipd
 
 from lava.lib.dl import slayer
+from prune_utils import remove_pruning_from_state_dict
 from audio_dataloader import DNSAudio
 from snr import si_snr
 from dnsmos import DNSMOS
@@ -33,27 +34,9 @@ from train_sdnn import collate_fn, stft_splitter, stft_mixer, nop_stats, Network
 # Modify network's `forward` method to log spiking events in each layer.
 
 # %%
-class InferenceNet(Network):
-    def forward(self, noisy):
-        x = noisy - self.stft_mean
-
-        counts = []
-        for i, block in enumerate(self.blocks):
-            # print("Layer", i)
-            # print("x.shape", x.shape)
-            # if hasattr(block, "synapse"):
-            #     print("synapse shape:", block.synapse.weight[:, :].shape)
-            # else:
-            #     print("no synapse (input layer)")
-            # print("-------")
-            x = block(x)
-            count = torch.mean((torch.abs(x) > 0).to(x.dtype))
-            counts.append(count.item())
-        mask = torch.relu(x + 1)
-        return slayer.axon.delay(noisy, self.out_delay) * mask, torch.tensor(counts)
-
 class AdvancedInferenceNet(Network):
     def forward(self, noisy):
+        # returns denoised, average number of spikes per neuron per timestep, and the average number of synaptic operations per layer per timestep
         x = noisy - self.stft_mean
 
         counts = []
@@ -62,53 +45,33 @@ class AdvancedInferenceNet(Network):
             if hasattr(block, "synapse"):
                 # Find the non-zero spikes in x
                 non_zero_spikes_indices = torch.where(torch.abs(x) > 0)
-
-                # Initialize synaptic operations for this block
+                
+                # get active neurons and the total number of times they spike
+                active_neurons = torch.unique(non_zero_spikes_indices[1], return_counts=True)
+ 
+                # Iterate through the neuron ids and spike counts for each neuron
                 synaptic_operations = 0
+                for incoming_neuron_idx, count in zip(active_neurons[0], active_neurons[1]):
 
-                # Iterate through non-zero spikes and count the number of non-zero connections for each
-                for idx in non_zero_spikes_indices:
-                    incoming_neuron_idx = idx[1]  # Assuming x has shape [batch, neurons, time]
+                    # Count non-zero weights connected to spiking neuronss and multiply times the neuron spike count
+                    synaptic_operations += count * torch.sum(torch.abs(block.synapse.weight[:, incoming_neuron_idx, :, :, :]) > 1e-10).item()
 
-                    # Count non-zero weights for this incoming neuron
-                    non_zero_weights_count = torch.sum(block.synapse.weight[:, incoming_neuron_idx, :, :, :] < 1e-10).item()
-                    synaptic_operations += non_zero_weights_count
-
-                synops.append(synaptic_operations)
-
+                synops.append(synaptic_operations/(x.shape[-1] * x.shape[0])) # Average over samples and timestep
             x = block(x)
             count = torch.mean((torch.abs(x) > 0).to(x.dtype))
             counts.append(count.item())
 
         mask = torch.relu(x + 1)
-        return slayer.axon.delay(noisy, self.out_delay) * mask, torch.tensor(counts), synops  # Return synops
-def remove_pruning_from_state_dict(state_dict):
-    new_state_dict = collections.OrderedDict()
-    
-    # Iterate through the original weights
-    for key, value in state_dict.items():
-        if key.endswith('_orig'):
-            # Find the corresponding mask
-            mask_key = key.replace('_orig', '_mask')
-            mask = state_dict.get(mask_key, None)
-            
-            # Apply the mask to the original weight
-            if mask is not None:
-                pruned_weight = value * mask
-                
-                # Remove the '_orig' suffix to revert to the original name
-                new_key = key.replace('_orig', '')
-                new_state_dict[new_key] = pruned_weight
-        elif not key.endswith('_mask'): # Exclude the mask itself
-            new_state_dict[key] = value
+        return slayer.axon.delay(noisy, self.out_delay) * mask, torch.tensor(counts),  torch.tensor(synops)  # Return synops
 
-    # Return the modified state dictionary
-    return new_state_dict
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Your description here.")
     parser.add_argument("--trained_folder", type=str,
                         help="Path to the trained folder.")
+    parser.add_argument("--testing_set",  default = False, action="store_true", 
+        help = "If true evaluate on the testing set")
     args = parser.parse_args()
+    testing_set = args.testing_set
     print(args)
 
     # %% [markdown]
@@ -122,9 +85,7 @@ if __name__ == "__main__":
     if 'n_fft' not in args.keys():
         args['n_fft'] = 512
     device = torch.device('cuda:0')
-    #device = torch.device('cpu')
-    #root = args['path']
-    root = '/gv1/projects/neuromorphics/dns/'
+
     out_delay = args['out_delay']
     n_fft = args['n_fft']
     win_length = n_fft
@@ -138,7 +99,12 @@ if __name__ == "__main__":
     torch.manual_seed(42)
     np.random.seed(42)
     random.seed(42)
-    validation_set = DNSAudio(root=root + 'validation_set/')
+    root = args['path']
+    if testing_set:
+        validation_set = DNSAudio(root=root + 'test_set_1/')
+    else:
+        validation_set = DNSAudio(root=root + 'validation_set/')
+
     validation_loader = DataLoader(validation_set,
                             batch_size=96,
                             shuffle=True,
@@ -152,7 +118,7 @@ if __name__ == "__main__":
     # ## 4. Instantiate N-DNS network
 
     # %%
-    net = InferenceNet(args['threshold'],
+    net = AdvancedInferenceNet(args['threshold'],
                     args['tau_grad'],
                     args['scale_grad'],
                     args['dmax'],
@@ -170,7 +136,6 @@ if __name__ == "__main__":
     # Load the saved state dictionary
     loaded = torch.load(trained_folder + '/network.pt')
     net.load_state_dict(remove_pruning_from_state_dict(loaded))
-    net(noisy_abs)
 
     # %%
     dnsmos = DNSMOS()
@@ -179,6 +144,7 @@ if __name__ == "__main__":
     dnsmos_noise = np.zeros(3)
     dnsmos_cleaned  = np.zeros(3)
     valid_event_counts = []
+    valid_synops_counts = [] # number of synaptic operations
 
     t_st = datetime.now()
     from multiprocessing import Pool
@@ -198,7 +164,9 @@ if __name__ == "__main__":
                 noisy_abs, noisy_arg = stft_splitter(noisy, n_fft)
                 clean_abs, clean_arg = stft_splitter(clean, n_fft)
 
-                denoised_abs, count = net(noisy_abs)
+                denoised_abs, count, syn_ops = net(noisy_abs)
+                valid_synops_counts.append(syn_ops.cpu().data.numpy())
+
                 valid_event_counts.append(count.cpu().data.numpy())
                 noisy_arg = slayer.axon.delay(noisy_arg, out_delay)
                 clean_abs = slayer.axon.delay(clean_abs, out_delay)
@@ -246,13 +214,14 @@ if __name__ == "__main__":
     print('Avg DNSMOS cleaned [ovrl, sig, bak]: ', dnsmos_cleaned)
 
     mean_events = np.mean(valid_event_counts, axis=0)
-
+    exact_synops = np.mean(valid_synops_counts, axis = 0)
     neuronops = []
     for block in net.blocks[:-1]:
         neuronops.append(np.prod(block.neuron.shape))
 
-    # for events, block in zip(mean_events, net.blocks[1:]):
-    #     synops.append(events * np.prod(block.synapse.shape))
+    # This code is less accurate than directly counting the number of synaptic operations during inference
+    # We keep it as a check of the other code. The exact synaptic operation method should return close to this
+    # result
     synops = []
     for events, block in zip(mean_events, net.blocks[1:]):
         # Calculate the percentage of non-zero weights
@@ -266,8 +235,9 @@ if __name__ == "__main__":
         # Append the result to the list, rounding to the nearest integer
         synops.append(int(round(synaptic_operations)))
 
-    print(f'SynOPS: {synops}')
-    print(f'Total SynOPS: {sum(synops)} per time-step')
+    print(f'Approximate Average SynOPS per layer per timestep: {synops}')
+    print(f'Exact Averagee SynOPS per layer per timestep:,{exact_synops}' )
+    print(f'Total SynOPS: {sum(exact_synops)} per time-step')
     print(f'Total NeuronOPS: {sum(neuronops)} per time-step')
     print(f'Time-step per sample: {noisy_abs.shape[-1]}')
 
@@ -366,7 +336,7 @@ if __name__ == "__main__":
 
     # %%
     latency = buffer_latency + enc_dec_latency + dns_latency
-    effective_synops_rate = (sum(synops) + 10 * sum(neuronops)) / dt
+    effective_synops_rate = (sum(exact_synops) + 10 * sum(neuronops)) / dt
     synops_delay_product = effective_synops_rate * latency
 
     print(f'Solution Latency                 : {latency * 1000: .3f} ms')

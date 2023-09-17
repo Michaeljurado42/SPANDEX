@@ -5,6 +5,7 @@ from lava.lib.dl.slayer.synapse import Dense
 import numpy as np
 import torch.nn.utils.prune as prune
 import torch
+import collections
 import heapq
 def get_prune_params(model):
     parameters_to_prune = []
@@ -64,6 +65,29 @@ def prune_model(model, desired_sparsity):
         prune.custom_from_mask(module, name=name, mask=torch.abs(module.weight) > threshold)
 
     return model
+
+def remove_pruning_from_state_dict(state_dict):
+    new_state_dict = collections.OrderedDict()
+    
+    # Iterate through the original weights
+    for key, value in state_dict.items():
+        if key.endswith('_orig'):
+            # Find the corresponding mask
+            mask_key = key.replace('_orig', '_mask')
+            mask = state_dict.get(mask_key, None)
+            
+            # Apply the mask to the original weight
+            if mask is not None:
+                pruned_weight = value * mask
+                
+                # Remove the '_orig' suffix to revert to the original name
+                new_key = key.replace('_orig', '')
+                new_state_dict[new_key] = pruned_weight
+        elif not key.endswith('_mask'): # Exclude the mask itself
+            new_state_dict[key] = value
+
+    # Return the modified state dictionary
+    return new_state_dict
 
 # def prune_model(model, pruning_rate):
 #     # Collect all weights
