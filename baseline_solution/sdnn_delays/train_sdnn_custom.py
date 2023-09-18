@@ -245,7 +245,7 @@ if __name__ == '__main__':
                         help='number of args.epoch to run')
     parser.add_argument('-path',
                         type=str,
-                        default='/gv1/projects/neuromorphics/dns/',
+                        default='data/',
                         help='dataset path')
     parser.add_argument("--sparsity_target", default = None, type = float)
     parser.add_argument("--pruning_epochs", default = 0, type = float)

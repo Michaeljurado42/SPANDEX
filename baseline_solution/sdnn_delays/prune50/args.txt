@@ -8,7 +8,7 @@ lam : 0.001
 lr : 0.01
 n_fft : 512
 out_delay : 0
-path : /gv1/projects/neuromorphics/dns/
+path : data/
 pretrained_weights_folder : Trained_ORIG
 pruning_epochs : 2.0
 scale_grad : 0.8
