@@ -2,9 +2,9 @@
   MOS_ovrl: 2.69
   MOS_sig: 3.19
   PDP_proxy_Ops: 300000.0
-  SI-SNR: 12.33
-  SI-SNRi_data: 4.75
-  SI-SNRi_enc+dec: 4.75
+  SI-SNR: 12.16
+  SI-SNRi_data: 4.80
+  SI-SNRi_enc+dec: 4.80
   date: '2023-08-18'
   latency_enc+dec_ms: 0.006
   latency_total_ms: 32.006
