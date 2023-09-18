@@ -1,3 +1,6 @@
+# SPANDEX (SPiking Audio Neural Denoising EXperiment)
+![spandex_pipeline](SPANDEX.svg)
+For more information please read the writeup.pdf
 # Readme
 
 ![solution_structure_2023-01-24](https://user-images.githubusercontent.com/29907126/225791642-b7888797-1202-4141-8580-63cde1278b98.png)
