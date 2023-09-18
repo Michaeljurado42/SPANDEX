@@ -9,7 +9,7 @@ lr : 0.01
 n_fft : 512
 out_delay : 0
 path : data/
-pretrained_weights_folder : Trained_ORIG
+pretrained_weights_folder : Trained
 pruning_epochs : 2.0
 scale_grad : 0.8
 seed : None
