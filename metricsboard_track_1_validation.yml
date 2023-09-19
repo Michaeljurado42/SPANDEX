@@ -3,14 +3,14 @@
   MOS_sig: 3.19
   PDP_proxy_Ops: 300000.0
   SI-SNR: 12.33
-  SI-SNRi_data: 7.58
-  SI-SNRi_enc+dec: 7.58
+  SI-SNRi_data: 4.75
+  SI-SNRi_enc+dec: 4.75
   date: '2023-08-18'
   latency_enc+dec_ms: 0.006
   latency_total_ms: 32.006
   model: 50% Sparsity SDNN
   model_path: ./baseline_solution/sdnn_delays/prune50/network.pt
-  params: 215000
+  params: 344000
   power_proxy_Ops/s: 9373000.0
   size_kilobytes: 305
   team: SPANDEX
@@ -26,7 +26,7 @@
   latency_total_ms: 32.006
   model: 75% Sparsity SDNN
   model_path: ./baseline_solution/sdnn_delays/prune75/network.pt
-  params: 108000
+  params: 174000
   power_proxy_Ops/s: 6040000.0
   size_kilobytes: 154
   team: SPANDEX
