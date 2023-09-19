@@ -30,14 +30,9 @@ if __name__ == "__main__":
     num_delays = sum([np.prod(d.shape) for d in delays])
     model_bits = sum([np.ceil(np.log2(np.abs(w).max())) * np.prod(w.shape) for w in weights]) + sum([np.ceil(np.log2(np.abs(d)).max()) * np.prod(d.shape) for d in delays])
     print('Model Size (KB):', model_bits / 8 / 1024)
-    print('Total number of weights', num_weights + num_delays)
+    print('Total number of params', num_weights + num_delays)
 
-    # Note to Judges: 
-
-    # The percentage of non zero weights (1 - Overall Sparsity) is .05 - .10 higher
-    # for lava models created through netx than the pytorch version. 
-    # During Track 2 I will work on fixing this.
-    print("netX calculated Synaptic Sparsity", 1 - nonzero_num_weights/num_weights)
+    print("netX calculated Synaptic Sparsity", 1 - nonzero_num_weights/num_weights) # 80 percent of the weights are zero
 
 
 
