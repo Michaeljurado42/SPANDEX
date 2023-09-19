@@ -75,7 +75,7 @@ if __name__ == '__main__':
             'MOS_bak': 3.29,
             'latency_enc+dec_ms': 0.006,
             'latency_total_ms': 32.006,
-            'power_proxy_Ops/s': 6.04 * 10**6, 
+            'power_proxy_Ops/s': 6.06 * 10**6, 
             'PDP_proxy_Ops': .194 *10**6,
             'params': 174 * 10**3,
             'size_kilobytes': 154,

@@ -27,6 +27,6 @@
   model: 75% Sparsity SDNN
   model_path: ./baseline_solution/sdnn_delays/prune75/network.pt
   params: 174000
-  power_proxy_Ops/s: 6040000.0
+  power_proxy_Ops/s: 6060000.0
   size_kilobytes: 154
   team: SPANDEX
