@@ -21,7 +21,7 @@ if __name__ == "__main__":
     print('Model Size (KB) (Sparsity Estimate):', model_bits / 8 / 1024)
     print("Total number of non-zero params:",  nonzero_num_weights + nonzero_num_delays)
     
-    # note I am pretty sure something is wrong with this code. The delays are 1d for example when they should be 2d
+    # note I am pretty sure something is wrong with code below. The delays are 1d for example when they should be 2d
     print("Bamsumit model estimate\n") 
     net = netx.utils.NetDict(trained_folder + '/network.net')
     weights = [net['layer'][l]['weight'] for l in range(1, 4)]
@@ -34,10 +34,10 @@ if __name__ == "__main__":
 
     # Note to Judges: 
 
-    # The percentage of non zero weights (Overall Sparsity) is .05 - .10 lower
+    # The percentage of non zero weights (1 - Overall Sparsity) is .05 - .10 higher
     # for lava models created through netx than the pytorch version. 
     # During Track 2 I will work on fixing this.
-    print("netX calculated Synaptic Sparsity", nonzero_num_weights/num_weights)
+    print("netX calculated Synaptic Sparsity", 1 - nonzero_num_weights/num_weights)
 
 
 
