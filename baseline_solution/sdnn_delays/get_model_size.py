@@ -34,9 +34,9 @@ if __name__ == "__main__":
 
     # Note to Judges: 
 
-    # The percentage of non zero weights (Overall Sparsity) is about 5% lower
+    # The percentage of non zero weights (Overall Sparsity) is .05 - .10 lower
     # for lava models created through netx than the pytorch version. 
-    # During Track 2 I will diagnose why this is
+    # During Track 2 I will work on fixing this.
     print("netX calculated Synaptic Sparsity", nonzero_num_weights/num_weights)
 
 
